@@ -1,8 +1,10 @@
 const express = require("express");
 const app = express();
 
+require("dotenv").config();
+
 //* En un futuro para las imagenes
-app.use("/public", express.static("public"));
+// app.use("/public", express.static("public"));
 
 //* Cors usage
 const cors = require("cors");
