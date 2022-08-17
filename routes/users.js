@@ -6,6 +6,14 @@ const validations = require("../validation");
 
 const { SHA256 } = require("sha2");
 
+const LOG = (msg) => {
+  const tmp = new Date();
+  const zone = "es-UY";
+  const date = tmp.toLocaleDateString(zone);
+  const time = tmp.toLocaleTimeString(zone);
+  console.log(`[${date} ${time}] - ${msg}`);
+};
+
 const encrypt = (pass) => {
   return SHA256(pass).toString("hex");
 };
@@ -61,7 +69,10 @@ const generateToken = () => {
 router.post("/login", async (req, res) => {
   const { user, pass } = req.body;
 
+  LOG(`Intento de login [${user} - ${pass}]`);
+
   if (validations.validateString(user) || validations.validateString(pass)) {
+    LOG(`Caracteres prohibidos [${user} - ${pass}]`);
     res.send({
       status: false,
       message: "El usuario y la contraseña solo pueden tener numeros y letras.",
@@ -74,6 +85,7 @@ router.post("/login", async (req, res) => {
     [user]
   );
   if (attempts[0].Attempts > 5) {
+    LOG(`Intento de inicio de sesion con cuenta bloqueada [${user} - ${pass}]`);
     res.send({
       status: false,
       message:
@@ -90,6 +102,9 @@ router.post("/login", async (req, res) => {
   );
 
   if (exists.length == 0) {
+    LOG(
+      `Intento de inicio de sesion con credenciales incorrectas [${user} - ${pass}]`
+    );
     await sql.query(`INSERT INTO LoginLogs (Usuario) VALUES (?);`, [user]);
     res.send({ status: false, message: "Credenciales incorrectas." });
     return;
@@ -103,6 +118,8 @@ router.post("/login", async (req, res) => {
     [token, user, encryptedPass]
   );
 
+  LOG(`Sesion iniciada correctamente [${user} - ${pass}]`);
+
   res.send({
     status: true,
     message: "Sesión iniciada.",
@@ -113,10 +130,15 @@ router.post("/login", async (req, res) => {
 router.post("/register", async (req, res) => {
   const { user, pass } = req.body;
 
+  LOG(`Intento de registro [${user} - ${pass}]`);
+
   if (
     validations.validateStringLength(user, 30, 4) ||
     validations.validateStringLength(pass, 30, 8)
   ) {
+    LOG(
+      `Intento de registro con credenciales de largo incorrecto [${user} - ${pass}]`
+    );
     res.send({
       status: false,
       message:
@@ -126,6 +148,9 @@ router.post("/register", async (req, res) => {
   }
 
   if (validations.validateString(user) || validations.validateString(pass)) {
+    LOG(
+      `Intento de registro con credenciales con caracteres prohibidos [${user} - ${pass}]`
+    );
     res.send({
       status: false,
       message: "El usuario y la contraseña solo pueden tener numeros y letras.",
@@ -138,7 +163,8 @@ router.post("/register", async (req, res) => {
   ]);
 
   if (inUse.length !== 0) {
-    res.send({ status: false, message: "Credenciales incorrectas." });
+    LOG(`Intento de registro con usuario ya existente [${user} - ${pass}]`);
+    res.send({ status: false, message: "Ese usuario se encuenta en uso." });
     return;
   }
 
@@ -148,6 +174,8 @@ router.post("/register", async (req, res) => {
     `INSERT INTO Usuarios (Usuario, Contrasena, EsAdmin, Token) VALUES (?, ?, ?, ?);`,
     [user, encryptedPass, false, token]
   );
+
+  LOG(`Registro exitoso [${user} - ${pass}]`);
 
   res.send({
     status: true,
@@ -159,7 +187,10 @@ router.post("/register", async (req, res) => {
 router.post("/token", async (req, res) => {
   const { token } = req.body;
 
+  LOG(`Intento de validacion de token [${token}]`);
+
   if (!token) {
+    LOG(`token con formato incorrecto [${token}]`);
     res.send({
       status: false,
       message: "El token tiene un formato incorrecto.",
@@ -168,18 +199,19 @@ router.post("/token", async (req, res) => {
   }
 
   if (token.length != 30) {
+    LOG(`Token de largo incorrecto [${token}]`);
     res.send({
       status: false,
-      message:
-        "El usuario debe tener de 4 a 30 caracteres y contraseña debe entre 8 y 30.",
+      message: "Token incorrecto.",
     });
     return;
   }
 
   if (validations.validateString(token)) {
+    LOG(`Token con carateres prohibidos [${token}]`);
     res.send({
       status: false,
-      message: "El usuario y la contraseña solo pueden tener numeros y letras.",
+      message: "Token incorrecto.",
     });
     return;
   }
@@ -190,13 +222,58 @@ router.post("/token", async (req, res) => {
   );
 
   if (user[0] === undefined) {
+    LOG(`Intento de validacion de token no existente [${token}]`);
     res.send({ status: false, message: "Token incorrecto." });
     return;
   }
 
+  LOG(`Token validado correctamente [${token}]`);
+
   res.send({
     status: true,
     message: "Token validado.",
+  });
+});
+
+router.delete("/token", async (req, res) => {
+  const { token } = req.body;
+
+  LOG(`Intento de cerrar sesion con token [${token}]`);
+
+  if (!token) {
+    LOG(`token con formato incorrecto [${token}]`);
+    res.send({
+      status: false,
+      message: "El token tiene un formato incorrecto.",
+    });
+    return;
+  }
+
+  if (token.length != 30) {
+    LOG(`Token de largo incorrecto [${token}]`);
+    res.send({
+      status: false,
+      message: "Token incorrecto.",
+    });
+    return;
+  }
+
+  if (validations.validateString(token)) {
+    LOG(`Token con carateres prohibidos [${token}]`);
+    res.send({
+      status: false,
+      message: "Token incorrecto.",
+    });
+    return;
+  }
+
+  await sql.query(`UPDATE Usuarios SET Token = ?;`, [null]);
+
+  LOG(`Sesion cerrada correctamente [${token}]`);
+
+  res.send({
+    status: true,
+    message: "Sesion cerrada correctamente.",
   });
 });
 
